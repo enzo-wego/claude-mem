@@ -154,6 +154,9 @@ export class GeminiAgent {
         session.cumulativeInputTokens += Math.floor(tokensUsed * 0.7);  // Rough estimate
         session.cumulativeOutputTokens += Math.floor(tokensUsed * 0.3);
 
+        // Ensure memorySessionId exists for stateless provider before storing observations
+        this.sessionManager.ensureMemorySessionId(session, 'gemini');
+
         // Process response using shared ResponseProcessor (no original timestamp for init - not from queue)
         await processAgentResponse(
           initResponse.content,

@@ -169,6 +169,29 @@ export class SessionManager {
   /**
    * Get active session by ID
    */
+
+  /**
+   * Ensures a memorySessionId exists for stateless providers (Gemini, OpenRouter).
+   * These providers don't have server-side sessions like Claude SDK, so we generate
+   * a synthetic ID based on the contentSessionId + provider name.
+   * This is deterministic to ensure consistent IDs for the same session+provider.
+   */
+  ensureMemorySessionId(session: ActiveSession, provider: 'gemini' | 'openrouter'): void {
+    if (!session.memorySessionId) {
+      // Generate deterministic synthetic ID
+      const syntheticId = `${provider}-${session.contentSessionId}`;
+      session.memorySessionId = syntheticId;
+
+      // Persist to database
+      this.dbManager.getSessionStore().updateMemorySessionId(
+        session.sessionDbId,
+        syntheticId
+      );
+
+      logger.info('SESSION', `SYNTHETIC_MEMORY_ID | sessionDbId=${session.sessionDbId} | memorySessionId=${syntheticId} | provider=${provider}`);
+    }
+  }
+
   getSession(sessionDbId: number): ActiveSession | undefined {
     return this.sessions.get(sessionDbId);
   }
