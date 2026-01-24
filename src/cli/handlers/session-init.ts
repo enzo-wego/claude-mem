@@ -5,8 +5,8 @@
  */
 
 import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js';
-import { ensureWorkerRunning, getWorkerPort } from '../../shared/worker-utils.js';
-import { getProjectName } from '../../utils/project-name.js';
+import { ensureWorkerRunning, getWorkerPort, isProjectIgnored } from '../../shared/worker-utils.js';
+import { getProjectName, getProjectContext } from '../../utils/project-name.js';
 import { logger } from '../../utils/logger.js';
 
 export const sessionInitHandler: EventHandler = {
@@ -15,6 +15,13 @@ export const sessionInitHandler: EventHandler = {
     await ensureWorkerRunning();
 
     const { sessionId, cwd, prompt } = input;
+
+    // Check if this project is ignored
+    const projectContext = getProjectContext(cwd);
+    if (isProjectIgnored(projectContext.allProjects)) {
+      logger.debug('HOOK', 'session-init: Project ignored', { project: projectContext.primary });
+      return { continue: true, suppressOutput: true };
+    }
 
     if (!prompt) {
       throw new Error('sessionInitHandler requires prompt');

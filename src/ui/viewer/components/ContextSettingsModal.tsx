@@ -542,6 +542,18 @@ export function ContextSettingsModal({
                 />
               </FormField>
 
+              <FormField
+                label="Ignored Projects"
+                tooltip="Projects to completely ignore (comma-separated). No data stored, no context injected."
+              >
+                <input
+                  type="text"
+                  value={formState.CLAUDE_MEM_IGNORED_PROJECTS || ''}
+                  onChange={(e) => updateSetting('CLAUDE_MEM_IGNORED_PROJECTS', e.target.value)}
+                  placeholder="project1, project2"
+                />
+              </FormField>
+
               <div className="toggle-group" style={{ marginTop: '12px' }}>
                 <ToggleSwitch
                   id="show-last-summary"

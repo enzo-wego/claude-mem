@@ -5,7 +5,8 @@
  */
 
 import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js';
-import { ensureWorkerRunning, getWorkerPort } from '../../shared/worker-utils.js';
+import { ensureWorkerRunning, getWorkerPort, isProjectIgnored } from '../../shared/worker-utils.js';
+import { getProjectContext } from '../../utils/project-name.js';
 import { logger } from '../../utils/logger.js';
 
 export const observationHandler: EventHandler = {
@@ -14,6 +15,13 @@ export const observationHandler: EventHandler = {
     await ensureWorkerRunning();
 
     const { sessionId, cwd, toolName, toolInput, toolResponse } = input;
+
+    // Check if this project is ignored
+    const projectContext = getProjectContext(cwd);
+    if (isProjectIgnored(projectContext.allProjects)) {
+      logger.debug('HOOK', 'observation: Project ignored', { project: projectContext.primary });
+      return { continue: true, suppressOutput: true };
+    }
 
     if (!toolName) {
       throw new Error('observationHandler requires toolName');

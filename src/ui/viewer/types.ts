@@ -90,6 +90,9 @@ export interface Settings {
   CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY?: string;
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE?: string;
   CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED?: string;  // 'true' | 'false'
+
+  // Project Filtering
+  CLAUDE_MEM_IGNORED_PROJECTS?: string;  // Comma-separated project names to ignore
 }
 
 export interface WorkerStats {

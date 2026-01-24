@@ -6,7 +6,7 @@
  */
 
 import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js';
-import { ensureWorkerRunning, getWorkerPort } from '../../shared/worker-utils.js';
+import { ensureWorkerRunning, getWorkerPort, isProjectIgnored } from '../../shared/worker-utils.js';
 import { getProjectContext } from '../../utils/project-name.js';
 
 export const contextHandler: EventHandler = {
@@ -16,6 +16,12 @@ export const contextHandler: EventHandler = {
 
     const cwd = input.cwd ?? process.cwd();
     const context = getProjectContext(cwd);
+
+    // Check if this project is ignored - return empty context
+    if (isProjectIgnored(context.allProjects)) {
+      return { hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: '' } };
+    }
+
     const port = getWorkerPort();
 
     // Pass all projects (parent + worktree if applicable) for unified timeline

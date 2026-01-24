@@ -52,6 +52,8 @@ export interface SettingsDefaults {
   CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: string;
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: string;
   CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED: string;
+  // Project Filtering
+  CLAUDE_MEM_IGNORED_PROJECTS: string;  // Comma-separated project names to ignore
 }
 
 export class SettingsDefaultsManager {
@@ -98,6 +100,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY: 'true',
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
     CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED: 'false',
+    // Project Filtering
+    CLAUDE_MEM_IGNORED_PROJECTS: '',  // Empty by default - no projects ignored
   };
 
   /**
