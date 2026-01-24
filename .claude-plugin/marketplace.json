@@ -1,16 +1,16 @@
 {
-  "name": "thedotmack",
+  "name": "enzo-claude-mem",
   "owner": {
-    "name": "Alex Newman"
+    "name": "Enzo Nguyen"
   },
   "metadata": {
-    "description": "Plugins by Alex Newman (thedotmack)",
-    "homepage": "https://github.com/thedotmack/claude-mem"
+    "description": "Plugins by Enzo Nguyen",
+    "homepage": "https://github.com/enzo-wego/claude-mem"
   },
   "plugins": [
     {
-      "name": "claude-mem",
-      "version": "9.0.6",
+      "name": "enzo-claude-mem",
+      "version": "1.0.0",
       "source": "./plugin",
       "description": "Persistent memory system for Claude Code - context compression across sessions"
     }
