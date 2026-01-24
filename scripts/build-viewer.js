@@ -28,7 +28,8 @@ async function buildViewer() {
         '.ts': 'ts'
       },
       define: {
-        'process.env.NODE_ENV': '"production"'
+        'process.env.NODE_ENV': '"production"',
+        '__BUILD_DATE__': `"${new Date().toISOString()}"`
       }
     });
 

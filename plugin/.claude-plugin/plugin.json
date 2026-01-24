@@ -1,11 +1,11 @@
 {
-  "name": "claude-mem",
-  "version": "9.0.6",
+  "name": "enzo-claude-mem",
+  "version": "1.0.0",
   "description": "Persistent memory system for Claude Code - seamlessly preserve context across sessions",
   "author": {
-    "name": "Alex Newman"
+    "name": "Enzo Nguyen"
   },
-  "repository": "https://github.com/thedotmack/claude-mem",
+  "repository": "https://github.com/enzo-wego/claude-mem",
   "license": "AGPL-3.0",
   "keywords": [
     "memory",
