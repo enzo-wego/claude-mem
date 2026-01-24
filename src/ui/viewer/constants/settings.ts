@@ -40,5 +40,5 @@ export const DEFAULT_SETTINGS = {
   CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED: 'false',
 
   // Project Filtering
-  CLAUDE_MEM_IGNORED_PROJECTS: '',
+  CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: '',
 } as const;

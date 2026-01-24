@@ -14,7 +14,7 @@ const HEALTH_CHECK_TIMEOUT_MS = getTimeout(HOOK_TIMEOUTS.HEALTH_CHECK);
 // Cache to avoid repeated settings file reads
 let cachedPort: number | null = null;
 let cachedHost: string | null = null;
-let cachedIgnoredProjects: string[] | null = null;
+let cachedAllowedProjectsOnly: string[] | null = null;
 
 /**
  * Get the worker port number from settings
@@ -49,43 +49,49 @@ export function getWorkerHost(): string {
 }
 
 /**
- * Clear the cached port, host, and ignored projects values
+ * Clear the cached port, host, and project filter values
  * Call this when settings are updated to force re-reading from file
  */
 export function clearPortCache(): void {
   cachedPort = null;
   cachedHost = null;
-  cachedIgnoredProjects = null;
+  cachedAllowedProjectsOnly = null;
 }
 
 /**
- * Get the list of ignored project names from settings
- * Uses CLAUDE_MEM_IGNORED_PROJECTS from settings file (comma-separated)
+ * Get the list of allowed project names from settings (whitelist mode)
+ * Uses CLAUDE_MEM_ALLOWED_PROJECTS_ONLY from settings file (comma-separated)
  * Caches the value to avoid repeated file reads
  */
-export function getIgnoredProjects(): string[] {
-  if (cachedIgnoredProjects !== null) {
-    return cachedIgnoredProjects;
+export function getAllowedProjectsOnly(): string[] {
+  if (cachedAllowedProjectsOnly !== null) {
+    return cachedAllowedProjectsOnly;
   }
 
   const settingsPath = path.join(SettingsDefaultsManager.get('CLAUDE_MEM_DATA_DIR'), 'settings.json');
   const settings = SettingsDefaultsManager.loadFromFile(settingsPath);
-  cachedIgnoredProjects = (settings.CLAUDE_MEM_IGNORED_PROJECTS || '')
+  cachedAllowedProjectsOnly = (settings.CLAUDE_MEM_ALLOWED_PROJECTS_ONLY || '')
     .split(',')
     .map(p => p.trim())
     .filter(p => p.length > 0);
-  return cachedIgnoredProjects;
+  return cachedAllowedProjectsOnly;
 }
 
 /**
- * Check if any of the given project names are in the ignored list
+ * Check if any of the given project names should be ignored
  * @param projectNames - Array of project names to check (e.g., from getProjectContext().allProjects)
- * @returns true if any project is ignored
+ * @returns true if project should be ignored (not in whitelist)
+ *
+ * Strict whitelist: only listed projects are processed (if empty, no projects are processed)
  */
 export function isProjectIgnored(projectNames: string[]): boolean {
-  const ignored = getIgnoredProjects();
-  if (ignored.length === 0) return false;
-  return projectNames.some(name => ignored.includes(name));
+  const allowedOnly = getAllowedProjectsOnly();
+  // If whitelist is empty, no projects are allowed
+  if (allowedOnly.length === 0) {
+    return true;
+  }
+  // Project must be in the whitelist
+  return !projectNames.some(name => allowedOnly.includes(name));
 }
 
 /**
