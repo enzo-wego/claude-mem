@@ -241,7 +241,9 @@ export class OpenRouterAgent {
       }
 
       // Check if we should fall back to Claude
-      if (shouldFallbackToClaude(error) && this.fallbackAgent) {
+      const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+      const disableFallback = settings.CLAUDE_MEM_DISABLE_CLAUDE_FALLBACK !== 'false';
+      if (shouldFallbackToClaude(error, disableFallback) && this.fallbackAgent) {
         logger.warn('SDK', 'OpenRouter API failed, falling back to Claude SDK', {
           sessionDbId: session.sessionDbId,
           error: error instanceof Error ? error.message : String(error),

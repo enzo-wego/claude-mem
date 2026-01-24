@@ -22,7 +22,12 @@ import { logger } from '../../../utils/logger.js';
  * @param error - Error object to check
  * @returns true if the error should trigger fallback to Claude
  */
-export function shouldFallbackToClaude(error: unknown): boolean {
+export function shouldFallbackToClaude(error: unknown, disableFallback: boolean = true): boolean {
+  // If fallback is disabled, never fall back to Claude
+  if (disableFallback) {
+    return false;
+  }
+
   const message = getErrorMessage(error);
 
   return FALLBACK_ERROR_PATTERNS.some(pattern => message.includes(pattern));

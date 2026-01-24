@@ -282,7 +282,10 @@ export class GeminiAgent {
       }
 
       // Check if we should fall back to Claude
-      if (shouldFallbackToClaude(error) && this.fallbackAgent) {
+      const settingsPath = path.join(homedir(), '.claude-mem', 'settings.json');
+      const settings = SettingsDefaultsManager.loadFromFile(settingsPath);
+      const disableFallback = settings.CLAUDE_MEM_DISABLE_CLAUDE_FALLBACK !== 'false';
+      if (shouldFallbackToClaude(error, disableFallback) && this.fallbackAgent) {
         logger.warn('SDK', 'Gemini API failed, falling back to Claude SDK', {
           sessionDbId: session.sessionDbId,
           error: error instanceof Error ? error.message : String(error),

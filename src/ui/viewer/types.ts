@@ -69,6 +69,7 @@ export interface Settings {
   CLAUDE_MEM_OPENROUTER_MODEL?: string;
   CLAUDE_MEM_OPENROUTER_SITE_URL?: string;
   CLAUDE_MEM_OPENROUTER_APP_NAME?: string;
+  CLAUDE_MEM_DISABLE_CLAUDE_FALLBACK?: string;  // 'true' | 'false'
 
   // Token Economics Display
   CLAUDE_MEM_CONTEXT_SHOW_READ_TOKENS?: string;
