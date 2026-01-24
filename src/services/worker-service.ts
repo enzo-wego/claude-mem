@@ -476,7 +476,7 @@ async function main() {
       const portInUse = await isPortInUse(port);
       if (portInUse) {
         logger.info('SYSTEM', 'Port in use, waiting for worker to become healthy');
-        const healthy = await waitForHealth(port, getPlatformTimeout(15000));
+        const healthy = await waitForHealth(port, getPlatformTimeout(30000));
         if (healthy) {
           logger.info('SYSTEM', 'Worker is now healthy');
           exitWithStatus('ready');
