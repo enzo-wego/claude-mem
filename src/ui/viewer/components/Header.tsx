@@ -3,6 +3,7 @@ import { ThemeToggle } from './ThemeToggle';
 import { ThemePreference } from '../hooks/useTheme';
 import { GitHubStarsButton } from './GitHubStarsButton';
 import { useSpinningFavicon } from '../hooks/useSpinningFavicon';
+import { useBuildInfo } from '../hooks/useBuildInfo';
 
 interface HeaderProps {
   isConnected: boolean;
@@ -28,6 +29,7 @@ export function Header({
   onContextPreviewToggle
 }: HeaderProps) {
   useSpinningFavicon(isProcessing);
+  const { buildDate } = useBuildInfo();
 
   return (
     <div className="header">
@@ -41,6 +43,7 @@ export function Header({
           )}
         </div>
         <span className="logo-text">claude-mem</span>
+        {buildDate && <span className="build-time">{buildDate}</span>}
       </h1>
       <div className="status">
         <a

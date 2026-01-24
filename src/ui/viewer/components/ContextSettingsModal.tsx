@@ -2,7 +2,6 @@ import React, { useState, useCallback, useEffect } from 'react';
 import type { Settings } from '../types';
 import { TerminalPreview } from './TerminalPreview';
 import { useContextPreview } from '../hooks/useContextPreview';
-import { useBuildInfo } from '../hooks/useBuildInfo';
 
 interface ContextSettingsModalProps {
   isOpen: boolean;
@@ -194,9 +193,6 @@ export function ContextSettingsModal({
 
   // Get context preview based on current form state
   const { preview, isLoading, error, projects, selectedProject, setSelectedProject } = useContextPreview(formState);
-
-  // Get build info
-  const { buildDate } = useBuildInfo();
 
   const updateSetting = useCallback((key: keyof Settings, value: string) => {
     const newState = { ...formState, [key]: value };
@@ -568,7 +564,6 @@ export function ContextSettingsModal({
 
         {/* Footer with Save button */}
         <div className="modal-footer">
-          {buildDate && <div className="build-info">Build: {buildDate}</div>}
           <div className="save-status">
             {saveStatus && <span className={saveStatus.includes('✓') ? 'success' : saveStatus.includes('✗') ? 'error' : ''}>{saveStatus}</span>}
           </div>
