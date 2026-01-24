@@ -89,6 +89,7 @@ export interface Settings {
   // Feature Toggles
   CLAUDE_MEM_CONTEXT_SHOW_LAST_SUMMARY?: string;
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE?: string;
+  CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED?: string;  // 'true' | 'false'
 }
 
 export interface WorkerStats {

@@ -557,6 +557,20 @@ export function ContextSettingsModal({
                   checked={formState.CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE === 'true'}
                   onChange={() => toggleBoolean('CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE')}
                 />
+                <ToggleSwitch
+                  id="folder-claudemd-enabled"
+                  label="Folder CLAUDE.md files"
+                  description="Generate CLAUDE.md files in project folders with recent activity"
+                  checked={formState.CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED === 'true'}
+                  onChange={() => toggleBoolean('CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED')}
+                />
+                <ToggleSwitch
+                  id="disable-claude-fallback"
+                  label="Disable Claude fallback"
+                  description="Don't fall back to Claude API when other providers fail"
+                  checked={formState.CLAUDE_MEM_DISABLE_CLAUDE_FALLBACK === 'true'}
+                  onChange={() => toggleBoolean('CLAUDE_MEM_DISABLE_CLAUDE_FALLBACK')}
+                />
               </div>
             </CollapsibleSection>
           </div>
