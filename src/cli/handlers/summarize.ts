@@ -7,7 +7,8 @@
  */
 
 import type { EventHandler, NormalizedHookInput, HookResult } from '../types.js';
-import { ensureWorkerRunning, getWorkerPort } from '../../shared/worker-utils.js';
+import { ensureWorkerRunning, getWorkerPort, isProjectIgnored } from '../../shared/worker-utils.js';
+import { getProjectContext } from '../../utils/project-name.js';
 import { logger } from '../../utils/logger.js';
 import { extractLastMessage } from '../../shared/transcript-parser.js';
 
@@ -15,6 +16,13 @@ export const summarizeHandler: EventHandler = {
   async execute(input: NormalizedHookInput): Promise<HookResult> {
     // Ensure worker is running before any other logic
     await ensureWorkerRunning();
+
+    // Check if this project is ignored
+    const projectContext = getProjectContext(input.cwd || process.cwd());
+    if (isProjectIgnored(projectContext.allProjects)) {
+      logger.debug('HOOK', 'summarize: Project ignored', { project: projectContext.primary });
+      return { continue: true, suppressOutput: true };
+    }
 
     const { sessionId, transcriptPath } = input;
 

@@ -7,7 +7,7 @@ export const claudeCodeAdapter: PlatformAdapter = {
     const r = (raw ?? {}) as any;
     return {
       sessionId: r.session_id,
-      cwd: r.cwd ?? process.cwd(),
+      cwd: r.cwd || process.cwd(),
       prompt: r.prompt,
       toolName: r.tool_name,
       toolInput: r.tool_input,
