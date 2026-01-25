@@ -53,7 +53,8 @@ export interface SettingsDefaults {
   CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: string;
   CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED: string;
   // Project Filtering
-  CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: string;  // Strict whitelist: Only process listed projects (if empty, no projects processed)
+  CLAUDE_MEM_IGNORED_PROJECTS: string;  // Blacklist: Projects to ignore (comma-separated)
+  CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: string;  // Whitelist: Only process these projects (overrides blacklist if non-empty)
 }
 
 export class SettingsDefaultsManager {
@@ -101,7 +102,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_CONTEXT_SHOW_LAST_MESSAGE: 'false',
     CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED: 'false',
     // Project Filtering
-    CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: '',  // Empty by default - no projects processed
+    CLAUDE_MEM_IGNORED_PROJECTS: '',  // Empty by default - no projects ignored (all allowed)
+    CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: '',  // Empty by default - whitelist disabled (use blacklist)
   };
 
   /**

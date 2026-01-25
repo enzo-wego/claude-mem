@@ -37,6 +37,7 @@ import {
   checkVersionMatch
 } from './infrastructure/HealthMonitor.js';
 import { performGracefulShutdown } from './infrastructure/GracefulShutdown.js';
+import { acquireSpawnLock, releaseSpawnLock } from './infrastructure/SpawnLock.js';
 
 // Server imports
 import { Server } from './server/Server.js';
@@ -452,7 +453,9 @@ async function main() {
 
   switch (command) {
     case 'start': {
-      if (await waitForHealth(port, 1000)) {
+      // Phase 1: Quick health check with increased timeout (5s instead of 1s)
+      // This gives slow/loaded systems more time to respond
+      if (await waitForHealth(port, 5000)) {
         const versionCheck = await checkVersionMatch(port);
         if (!versionCheck.matches) {
           logger.info('SYSTEM', 'Worker version mismatch detected - auto-restarting', {
@@ -473,10 +476,26 @@ async function main() {
         }
       }
 
+      // Phase 2: Acquire spawn lock to prevent race condition
+      // Multiple concurrent hooks can call 'start' simultaneously
+      const lockAcquired = acquireSpawnLock();
+      if (!lockAcquired) {
+        // Another process is spawning - wait for worker to become ready
+        logger.info('SYSTEM', 'Another process is starting the worker, waiting...');
+        const healthy = await waitForHealth(port, getPlatformTimeout(30000));
+        if (healthy) {
+          exitWithStatus('ready');
+        }
+        exitWithStatus('error', 'Worker startup by another process failed');
+      }
+
+      // We have the lock - proceed with spawn logic
+      // Note: Must release lock before exitWithStatus since process.exit() doesn't trigger finally
       const portInUse = await isPortInUse(port);
       if (portInUse) {
         logger.info('SYSTEM', 'Port in use, waiting for worker to become healthy');
         const healthy = await waitForHealth(port, getPlatformTimeout(30000));
+        releaseSpawnLock();
         if (healthy) {
           logger.info('SYSTEM', 'Worker is now healthy');
           exitWithStatus('ready');
@@ -488,6 +507,7 @@ async function main() {
       logger.info('SYSTEM', 'Starting worker daemon');
       const pid = spawnDaemon(__filename, port);
       if (pid === undefined) {
+        releaseSpawnLock();
         logger.error('SYSTEM', 'Failed to spawn worker daemon');
         exitWithStatus('error', 'Failed to spawn worker daemon');
       }
@@ -496,6 +516,7 @@ async function main() {
       // This is race-free and works correctly on Windows where cmd.exe PID is useless
 
       const healthy = await waitForHealth(port, getPlatformTimeout(30000));
+      releaseSpawnLock();
       if (!healthy) {
         removePidFile();
         logger.error('SYSTEM', 'Worker failed to start (health check timeout)');

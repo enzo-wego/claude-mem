@@ -92,7 +92,8 @@ export interface Settings {
   CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED?: string;  // 'true' | 'false'
 
   // Project Filtering
-  CLAUDE_MEM_ALLOWED_PROJECTS_ONLY?: string;  // Strict whitelist: Only process listed projects
+  CLAUDE_MEM_IGNORED_PROJECTS?: string;  // Blacklist: Projects to ignore (comma-separated)
+  CLAUDE_MEM_ALLOWED_PROJECTS_ONLY?: string;  // Whitelist: Only process these (overrides blacklist)
 }
 
 export interface WorkerStats {

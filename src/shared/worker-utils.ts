@@ -15,6 +15,7 @@ const HEALTH_CHECK_TIMEOUT_MS = getTimeout(HOOK_TIMEOUTS.HEALTH_CHECK);
 let cachedPort: number | null = null;
 let cachedHost: string | null = null;
 let cachedAllowedProjectsOnly: string[] | null = null;
+let cachedIgnoredProjects: string[] | null = null;
 
 /**
  * Get the worker port number from settings
@@ -56,6 +57,26 @@ export function clearPortCache(): void {
   cachedPort = null;
   cachedHost = null;
   cachedAllowedProjectsOnly = null;
+  cachedIgnoredProjects = null;
+}
+
+/**
+ * Get the list of ignored project names from settings (blacklist mode)
+ * Uses CLAUDE_MEM_IGNORED_PROJECTS from settings file (comma-separated)
+ * Caches the value to avoid repeated file reads
+ */
+export function getIgnoredProjects(): string[] {
+  if (cachedIgnoredProjects !== null) {
+    return cachedIgnoredProjects;
+  }
+
+  const settingsPath = path.join(SettingsDefaultsManager.get('CLAUDE_MEM_DATA_DIR'), 'settings.json');
+  const settings = SettingsDefaultsManager.loadFromFile(settingsPath);
+  cachedIgnoredProjects = (settings.CLAUDE_MEM_IGNORED_PROJECTS || '')
+    .split(',')
+    .map(p => p.trim())
+    .filter(p => p.length > 0);
+  return cachedIgnoredProjects;
 }
 
 /**
@@ -80,18 +101,29 @@ export function getAllowedProjectsOnly(): string[] {
 /**
  * Check if any of the given project names should be ignored
  * @param projectNames - Array of project names to check (e.g., from getProjectContext().allProjects)
- * @returns true if project should be ignored (not in whitelist)
+ * @returns true if project should be ignored
  *
- * Strict whitelist: only listed projects are processed (if empty, no projects are processed)
+ * Logic:
+ * 1. If whitelist (ALLOWED_PROJECTS_ONLY) is non-empty: project must be in whitelist
+ * 2. If whitelist is empty: use blacklist (IGNORED_PROJECTS) - project is ignored if in blacklist
+ * 3. If both empty: no filtering, all projects allowed
  */
 export function isProjectIgnored(projectNames: string[]): boolean {
   const allowedOnly = getAllowedProjectsOnly();
-  // If whitelist is empty, no projects are allowed
-  if (allowedOnly.length === 0) {
-    return true;
+  const ignored = getIgnoredProjects();
+
+  // If whitelist is configured (non-empty), use strict whitelist mode
+  if (allowedOnly.length > 0) {
+    return !projectNames.some(name => allowedOnly.includes(name));
   }
-  // Project must be in the whitelist
-  return !projectNames.some(name => allowedOnly.includes(name));
+
+  // Otherwise, use blacklist mode (default: nothing ignored)
+  if (ignored.length > 0) {
+    return projectNames.some(name => ignored.includes(name));
+  }
+
+  // Default: no filtering, all projects allowed
+  return false;
 }
 
 /**

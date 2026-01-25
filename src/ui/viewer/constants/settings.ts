@@ -40,5 +40,6 @@ export const DEFAULT_SETTINGS = {
   CLAUDE_MEM_FOLDER_CLAUDEMD_ENABLED: 'false',
 
   // Project Filtering
-  CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: '',
+  CLAUDE_MEM_IGNORED_PROJECTS: '',  // Blacklist: projects to ignore
+  CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: '',  // Whitelist: only process these (overrides blacklist)
 } as const;

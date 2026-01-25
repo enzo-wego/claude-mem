@@ -543,14 +543,26 @@ export function ContextSettingsModal({
               </FormField>
 
               <FormField
+                label="Ignored Projects"
+                tooltip="Blacklist: Projects to completely ignore (comma-separated). No data stored, no context injected. Empty = all projects allowed."
+              >
+                <input
+                  type="text"
+                  value={formState.CLAUDE_MEM_IGNORED_PROJECTS || ''}
+                  onChange={(e) => updateSetting('CLAUDE_MEM_IGNORED_PROJECTS', e.target.value)}
+                  placeholder="project1, project2"
+                />
+              </FormField>
+
+              <FormField
                 label="Allowed Projects Only"
-                tooltip="Strict whitelist: Only process these projects (comma-separated). If empty, no projects are processed. Ignored projects takes precedence."
+                tooltip="Whitelist (optional): If set, ONLY these projects are processed. Overrides blacklist. Empty = use blacklist mode."
               >
                 <input
                   type="text"
                   value={formState.CLAUDE_MEM_ALLOWED_PROJECTS_ONLY || ''}
                   onChange={(e) => updateSetting('CLAUDE_MEM_ALLOWED_PROJECTS_ONLY', e.target.value)}
-                  placeholder="project1, project2 (required)"
+                  placeholder="project1, project2 (optional)"
                 />
               </FormField>
 
