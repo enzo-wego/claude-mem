@@ -27,6 +27,11 @@ const CONTEXT_GENERATOR = {
   source: 'src/services/context-generator.ts'
 };
 
+const SMART_INSTALL = {
+  name: 'smart-install',
+  source: 'src/cli/smart-install.ts'
+};
+
 async function buildHooks() {
   console.log('🔨 Building claude-mem hooks and worker service...\n');
 
@@ -151,11 +156,31 @@ async function buildHooks() {
     const contextGenStats = fs.statSync(`${hooksDir}/${CONTEXT_GENERATOR.name}.cjs`);
     console.log(`✓ context-generator built (${(contextGenStats.size / 1024).toFixed(2)} KB)`);
 
-    console.log('\n✅ Worker service, MCP server, and context generator built successfully!');
+    // Build smart-install CLI
+    console.log(`\n🔧 Building smart-install...`);
+    await build({
+      entryPoints: [SMART_INSTALL.source],
+      bundle: true,
+      platform: 'node',
+      target: 'node18',
+      format: 'esm',
+      outfile: `${hooksDir}/${SMART_INSTALL.name}.js`,
+      minify: true,
+      logLevel: 'error',
+      banner: {
+        js: '#!/usr/bin/env node'
+      }
+    });
+
+    const smartInstallStats = fs.statSync(`${hooksDir}/${SMART_INSTALL.name}.js`);
+    console.log(`✓ smart-install built (${(smartInstallStats.size / 1024).toFixed(2)} KB)`);
+
+    console.log('\n✅ All scripts built successfully!');
     console.log(`   Output: ${hooksDir}/`);
     console.log(`   - Worker: worker-service.cjs`);
     console.log(`   - MCP Server: mcp-server.cjs`);
     console.log(`   - Context Generator: context-generator.cjs`);
+    console.log(`   - Smart Install: smart-install.js`);
 
   } catch (error) {
     console.error('\n❌ Build failed:', error.message);

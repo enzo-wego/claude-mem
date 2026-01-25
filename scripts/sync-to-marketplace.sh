@@ -13,7 +13,8 @@ NC='\033[0m' # No Color
 
 # Configuration
 SOURCE_DIR="plugin/"
-DEST_DIR="$HOME/.claude/plugins/marketplaces/thedotmack/plugin/"
+MARKETPLACE_VENDOR="${CLAUDE_MEM_MARKETPLACE_VENDOR:-enzo-claude-mem}"
+DEST_DIR="$HOME/.claude/plugins/marketplaces/${MARKETPLACE_VENDOR}/plugin/"
 
 # Function to print colored output
 print_status() {

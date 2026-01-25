@@ -11,6 +11,11 @@ export const MARKETPLACE_VENDOR = 'enzo-claude-mem';
 export const MARKETPLACE_ROOT = join(homedir(), '.claude', 'plugins', 'marketplaces', MARKETPLACE_VENDOR);
 export const CACHE_ROOT = join(homedir(), '.claude', 'plugins', 'cache', MARKETPLACE_VENDOR, 'claude-mem');
 
+// GitHub configuration - uses settings from SettingsDefaultsManager
+export const GITHUB_ORG = SettingsDefaultsManager.get('CLAUDE_MEM_GITHUB_ORG');
+export const GITHUB_REPO = SettingsDefaultsManager.get('CLAUDE_MEM_GITHUB_REPO');
+export const GITHUB_REPO_URL = `https://github.com/${GITHUB_ORG}/${GITHUB_REPO}`;
+
 // Get __dirname that works in both ESM (hooks) and CJS (worker) contexts
 function getDirname(): string {
   // CJS context - __dirname exists

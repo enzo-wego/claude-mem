@@ -12,6 +12,11 @@ import readline from 'readline';
 
 const execAsync = promisify(exec);
 
+// GitHub configuration from env with defaults
+const GITHUB_ORG = process.env.CLAUDE_MEM_GITHUB_ORG || 'enzo-wego';
+const GITHUB_REPO = process.env.CLAUDE_MEM_GITHUB_REPO || 'claude-mem';
+const GITHUB_REPO_URL = `https://github.com/${GITHUB_ORG}/${GITHUB_REPO}`;
+
 const rl = readline.createInterface({
   input: process.stdin,
   output: process.stdout
@@ -120,7 +125,7 @@ async function publish() {
     await execAsync(`git commit -m "chore: Release v${newVersion}
 
 Marketplace release for Claude Code plugin
-https://github.com/thedotmack/claude-mem"`);
+${GITHUB_REPO_URL}"`);
     await execAsync(`git tag v${newVersion}`);
     console.log(`✓ Created commit and tag v${newVersion}`);
 
@@ -131,7 +136,7 @@ https://github.com/thedotmack/claude-mem"`);
     console.log('✓ Pushed to git');
 
     console.log(`\n✅ Successfully released v${newVersion}! 🎉`);
-    console.log(`\n🏷️  Tag: https://github.com/thedotmack/claude-mem/releases/tag/v${newVersion}`);
+    console.log(`\n🏷️  Tag: ${GITHUB_REPO_URL}/releases/tag/v${newVersion}`);
     console.log(`📦 Marketplace will sync from this tag automatically`);
 
   } catch (error) {

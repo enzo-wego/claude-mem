@@ -63,7 +63,9 @@ function truncate(text, maxLength) {
 
 async function postToDiscord(webhookUrl, version, notes) {
   const cleanedNotes = notes ? cleanNotes(notes) : 'No release notes available.';
-  const repoUrl = 'https://github.com/thedotmack/claude-mem';
+  const githubOrg = process.env.CLAUDE_MEM_GITHUB_ORG || 'enzo-wego';
+  const githubRepo = process.env.CLAUDE_MEM_GITHUB_REPO || 'claude-mem';
+  const repoUrl = `https://github.com/${githubOrg}/${githubRepo}`;
 
   const payload = {
     embeds: [

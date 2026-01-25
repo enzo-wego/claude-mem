@@ -55,6 +55,9 @@ export interface SettingsDefaults {
   // Project Filtering
   CLAUDE_MEM_IGNORED_PROJECTS: string;  // Blacklist: Projects to ignore (comma-separated)
   CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: string;  // Whitelist: Only process these projects (overrides blacklist if non-empty)
+  // GitHub Configuration
+  CLAUDE_MEM_GITHUB_ORG: string;  // GitHub organization name
+  CLAUDE_MEM_GITHUB_REPO: string;  // GitHub repository name
 }
 
 export class SettingsDefaultsManager {
@@ -104,6 +107,9 @@ export class SettingsDefaultsManager {
     // Project Filtering
     CLAUDE_MEM_IGNORED_PROJECTS: '',  // Empty by default - no projects ignored (all allowed)
     CLAUDE_MEM_ALLOWED_PROJECTS_ONLY: '',  // Empty by default - whitelist disabled (use blacklist)
+    // GitHub Configuration
+    CLAUDE_MEM_GITHUB_ORG: 'enzo-wego',  // GitHub organization name
+    CLAUDE_MEM_GITHUB_REPO: 'claude-mem',  // GitHub repository name
   };
 
   /**

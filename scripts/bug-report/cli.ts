@@ -11,6 +11,11 @@ import { promisify } from "util";
 
 const execAsync = promisify(exec);
 
+// GitHub configuration from env with defaults
+const GITHUB_ORG = process.env.CLAUDE_MEM_GITHUB_ORG || 'enzo-wego';
+const GITHUB_REPO = process.env.CLAUDE_MEM_GITHUB_REPO || 'claude-mem';
+const GITHUB_REPO_URL = `https://github.com/${GITHUB_ORG}/${GITHUB_REPO}`;
+
 interface CliArgs {
   output?: string;
   verbose: boolean;
@@ -236,7 +241,7 @@ async function main() {
   // Build GitHub URL with pre-filled title and body
   const encodedTitle = encodeURIComponent(result.title);
   const encodedBody = encodeURIComponent(result.body);
-  const githubUrl = `https://github.com/thedotmack/claude-mem/issues/new?title=${encodedTitle}&body=${encodedBody}`;
+  const githubUrl = `${GITHUB_REPO_URL}/issues/new?title=${encodedTitle}&body=${encodedBody}`;
 
   // Display the report
   console.log("─".repeat(60));

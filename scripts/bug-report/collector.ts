@@ -6,6 +6,9 @@ import * as os from "os";
 
 const execAsync = promisify(exec);
 
+// Marketplace vendor from env with default
+const MARKETPLACE_VENDOR = process.env.CLAUDE_MEM_MARKETPLACE_VENDOR || 'enzo-claude-mem';
+
 export interface SystemDiagnostics {
   versions: {
     claudeMem: string;
@@ -183,7 +186,7 @@ export async function collectDiagnostics(
     ".claude",
     "plugins",
     "marketplaces",
-    "thedotmack"
+    MARKETPLACE_VENDOR
   );
   const cwd = process.cwd();
   const isDevMode = cwd.includes("claude-mem") && !cwd.includes(".claude");

@@ -5,6 +5,10 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
+// GitHub configuration - single source of truth
+const GITHUB_ORG = process.env.CLAUDE_MEM_GITHUB_ORG || 'enzo-wego';
+const GITHUB_REPO = process.env.CLAUDE_MEM_GITHUB_REPO || 'claude-mem';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, '..');
@@ -29,7 +33,9 @@ async function buildViewer() {
       },
       define: {
         'process.env.NODE_ENV': '"production"',
-        '__BUILD_DATE__': `"${new Date().toISOString()}"`
+        '__BUILD_DATE__': `"${new Date().toISOString()}"`,
+        '__GITHUB_ORG__': `"${GITHUB_ORG}"`,
+        '__GITHUB_REPO__': `"${GITHUB_REPO}"`
       }
     });
 
