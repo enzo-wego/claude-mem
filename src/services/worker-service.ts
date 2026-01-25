@@ -282,27 +282,13 @@ export class WorkerService {
       this.server.registerRoutes(this.searchRoutes);
       logger.info('WORKER', 'SearchManager initialized and search routes registered');
 
-      // Connect to MCP server
-      const mcpServerPath = path.join(__dirname, 'mcp-server.cjs');
-      const transport = new StdioClientTransport({
-        command: 'node',
-        args: [mcpServerPath],
-        env: process.env
-      });
-
-      const MCP_INIT_TIMEOUT_MS = 300000;
-      const mcpConnectionPromise = this.mcpClient.connect(transport);
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('MCP connection timeout after 5 minutes')), MCP_INIT_TIMEOUT_MS)
-      );
-
-      await Promise.race([mcpConnectionPromise, timeoutPromise]);
-      this.mcpReady = true;
-      logger.success('WORKER', 'Connected to MCP server');
-
+      // Mark worker as ready BEFORE MCP connection (MCP is optional for basic functionality)
       this.initializationCompleteFlag = true;
       this.resolveInitialization();
-      logger.info('SYSTEM', 'Background initialization complete');
+      logger.info('SYSTEM', 'Background initialization complete (MCP connecting in background)');
+
+      // Connect to MCP server in background (fire-and-forget with error logging)
+      this.connectMcpInBackground();
 
       // Auto-recover orphaned queues (fire-and-forget with error logging)
       this.processPendingQueues(50).then(result => {
@@ -320,6 +306,35 @@ export class WorkerService {
       logger.error('SYSTEM', 'Background initialization failed', {}, error as Error);
       throw error;
     }
+  }
+
+
+  /**
+   * Connect to MCP server in background (fire-and-forget).
+   * MCP is only needed for AI-powered features, not basic worker functionality.
+   */
+  private connectMcpInBackground(): void {
+    const mcpServerPath = path.join(__dirname, 'mcp-server.cjs');
+    const transport = new StdioClientTransport({
+      command: 'node',
+      args: [mcpServerPath],
+      env: process.env
+    });
+
+    const MCP_INIT_TIMEOUT_MS = 300000;
+    const mcpConnectionPromise = this.mcpClient.connect(transport);
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('MCP connection timeout after 5 minutes')), MCP_INIT_TIMEOUT_MS)
+    );
+
+    Promise.race([mcpConnectionPromise, timeoutPromise])
+      .then(() => {
+        this.mcpReady = true;
+        logger.success('WORKER', 'Connected to MCP server');
+      })
+      .catch((error) => {
+        logger.error('WORKER', 'MCP connection failed (non-fatal)', {}, error as Error);
+      });
   }
 
   /**
