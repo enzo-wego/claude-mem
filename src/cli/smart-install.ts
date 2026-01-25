@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 /**
  * Smart Install Script for claude-mem
  *
@@ -235,8 +234,7 @@ function installCLI(): void {
       const existingContent = existsSync(profilePath) ? readFileSync(profilePath, 'utf-8') : '';
       if (!existingContent.includes('function claude-mem')) {
         writeFileSync(profilePath, existingContent + '\n' + functionDef);
-        console.error(`✅ PowerShell function added to profile`);
-        console.error('   Restart your terminal to use: claude-mem <command>');
+        // Suppress success message - stderr output triggers Claude Code's "hook error" indicator
       }
     } else {
       // Unix: Add alias to shell configs
@@ -250,15 +248,16 @@ function installCLI(): void {
           const content = readFileSync(config, 'utf-8');
           if (!content.includes('alias claude-mem=')) {
             writeFileSync(config, content + '\n' + aliasLine + '\n');
-            console.error(`✅ Alias added to ${config}`);
+            // Suppress success message - stderr output triggers Claude Code's "hook error" indicator
           }
         }
       }
-      console.error('   Restart your terminal to use: claude-mem <command>');
+      // Suppress informational message - stderr output triggers Claude Code's "hook error" indicator
     }
 
     writeFileSync(markerPath, new Date().toISOString());
   } catch (error) {
+    // Only log actual errors
     const message = error instanceof Error ? error.message : String(error);
     console.error(`⚠️  Could not add shell alias: ${message}`);
     console.error(`   Use directly: ${bunPath} "${WORKER_CLI}" <command>`);
@@ -292,19 +291,20 @@ function installDeps(): void {
     throw new Error('Bun executable not found');
   }
 
-  console.error('📦 Installing dependencies with Bun...');
+  // Suppress informational message - stderr output triggers Claude Code's "hook error" indicator
 
   // Quote path for Windows paths with spaces
   const bunCmd = IS_WINDOWS && bunPath.includes(' ') ? `"${bunPath}"` : bunPath;
 
   let bunSucceeded = false;
   try {
-    execSync(`${bunCmd} install`, { cwd: ROOT, stdio: 'inherit', shell: IS_WINDOWS });
+    // Use 'pipe' instead of 'inherit' to suppress output
+    execSync(`${bunCmd} install`, { cwd: ROOT, stdio: 'pipe', shell: IS_WINDOWS });
     bunSucceeded = true;
   } catch {
     // First attempt failed, try with force flag
     try {
-      execSync(`${bunCmd} install --force`, { cwd: ROOT, stdio: 'inherit', shell: IS_WINDOWS });
+      execSync(`${bunCmd} install --force`, { cwd: ROOT, stdio: 'pipe', shell: IS_WINDOWS });
       bunSucceeded = true;
     } catch {
       // Bun failed completely, will try npm fallback
@@ -313,10 +313,10 @@ function installDeps(): void {
 
   // Fallback to npm if bun failed (handles npm alias packages correctly)
   if (!bunSucceeded) {
+    // Only show error message if we need to fall back (this is an error condition)
     console.error('⚠️  Bun install failed, falling back to npm...');
-    console.error('   (This can happen with npm alias packages like *-cjs)');
     try {
-      execSync('npm install', { cwd: ROOT, stdio: 'inherit', shell: IS_WINDOWS });
+      execSync('npm install', { cwd: ROOT, stdio: 'pipe', shell: IS_WINDOWS });
     } catch (npmError) {
       const message = npmError instanceof Error ? npmError.message : String(npmError);
       throw new Error('Both bun and npm install failed: ' + message);
@@ -334,6 +334,8 @@ function installDeps(): void {
 }
 
 // Main execution
+// NOTE: For SessionStart hooks, Claude Code shows "hook error" if there's ANY stderr output,
+// even with exit code 0. We suppress informational output during normal operation.
 try {
   // Step 1: Ensure Bun is installed (REQUIRED)
   if (!isBunInstalled()) {
@@ -365,11 +367,11 @@ try {
     const newVersion = pkg.version;
 
     installDeps();
-    console.error('✅ Dependencies installed');
+    // Suppress success message - stderr output triggers Claude Code's "hook error" indicator
 
     // Auto-restart worker to pick up new code
     const port = process.env.CLAUDE_MEM_WORKER_PORT || '37777';
-    console.error(`[claude-mem] Plugin updated to v${newVersion} - restarting worker...`);
+    // Suppress update message - stderr output triggers Claude Code's "hook error" indicator
     try {
       // Graceful shutdown via HTTP (curl is cross-platform enough)
       execSync(`curl -s -X POST http://127.0.0.1:${port}/api/admin/shutdown`, {
@@ -388,7 +390,19 @@ try {
     // Worker will be started fresh by next hook in chain (worker-service.cjs start)
   }
 
-  // Step 4: Install CLI to PATH
+  // Step 4: Ensure bun-runner.sh is executable (for non-Windows)
+  if (!IS_WINDOWS) {
+    const bunRunner = join(ROOT, 'plugin', 'scripts', 'bun-runner.sh');
+    if (existsSync(bunRunner)) {
+      try {
+        execSync(`chmod +x "${bunRunner}"`, { stdio: 'ignore' });
+      } catch {
+        // Ignore chmod errors - might already be executable
+      }
+    }
+  }
+
+  // Step 5: Install CLI to PATH (silently)
   installCLI();
 } catch (e) {
   const message = e instanceof Error ? e.message : String(e);
