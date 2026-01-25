@@ -16,6 +16,7 @@ import { exec } from 'child_process';
 import { promisify } from 'util';
 import { logger } from '../../utils/logger.js';
 import { getWorkerPort } from '../../shared/worker-utils.js';
+import { MARKETPLACE_ROOT } from '../../shared/paths.js';
 import {
   readCursorRegistry as readCursorRegistryFromFile,
   writeCursorRegistry as writeCursorRegistryToFile,
@@ -133,7 +134,7 @@ export async function updateCursorContextForProject(projectName: string, port: n
 export function findCursorHooksDir(): string | null {
   const possiblePaths = [
     // Marketplace install location
-    path.join(homedir(), '.claude', 'plugins', 'marketplaces', 'thedotmack', 'cursor-hooks'),
+    path.join(MARKETPLACE_ROOT, 'cursor-hooks'),
     // Development/source location (relative to built worker-service.cjs in plugin/scripts/)
     path.join(path.dirname(__filename), '..', '..', 'cursor-hooks'),
     // Alternative dev location
@@ -156,7 +157,7 @@ export function findCursorHooksDir(): string | null {
 export function findMcpServerPath(): string | null {
   const possiblePaths = [
     // Marketplace install location
-    path.join(homedir(), '.claude', 'plugins', 'marketplaces', 'thedotmack', 'plugin', 'scripts', 'mcp-server.cjs'),
+    path.join(MARKETPLACE_ROOT, 'plugin', 'scripts', 'mcp-server.cjs'),
     // Development/source location (relative to built worker-service.cjs in plugin/scripts/)
     path.join(path.dirname(__filename), 'mcp-server.cjs'),
     // Alternative dev location
@@ -178,7 +179,7 @@ export function findMcpServerPath(): string | null {
 export function findWorkerServicePath(): string | null {
   const possiblePaths = [
     // Marketplace install location
-    path.join(homedir(), '.claude', 'plugins', 'marketplaces', 'thedotmack', 'plugin', 'scripts', 'worker-service.cjs'),
+    path.join(MARKETPLACE_ROOT, 'plugin', 'scripts', 'worker-service.cjs'),
     // Development/source location (relative to built worker-service.cjs in plugin/scripts/)
     path.join(path.dirname(__filename), 'worker-service.cjs'),
     // Alternative dev location
@@ -230,7 +231,7 @@ export function configureCursorMcp(target: CursorInstallTarget): number {
 
   if (!mcpServerPath) {
     console.error('Could not find MCP server script');
-    console.error('   Expected at: ~/.claude/plugins/marketplaces/thedotmack/plugin/scripts/mcp-server.cjs');
+    console.error(`   Expected at: ${path.join(MARKETPLACE_ROOT, 'plugin', 'scripts', 'mcp-server.cjs')}`);
     return 1;
   }
 
@@ -299,7 +300,7 @@ export async function installCursorHooks(_sourceDir: string, target: CursorInsta
   const workerServicePath = findWorkerServicePath();
   if (!workerServicePath) {
     console.error('Could not find worker-service.cjs');
-    console.error('   Expected at: ~/.claude/plugins/marketplaces/thedotmack/plugin/scripts/worker-service.cjs');
+    console.error(`   Expected at: ${path.join(MARKETPLACE_ROOT, 'plugin', 'scripts', 'worker-service.cjs')}`);
     return 1;
   }
 
@@ -616,7 +617,7 @@ export async function handleCursorCommand(subcommand: string, args: string[]): P
 
       if (!cursorHooksDir) {
         console.error('Could not find cursor-hooks directory');
-        console.error('   Expected at: ~/.claude/plugins/marketplaces/thedotmack/cursor-hooks/');
+        console.error(`   Expected at: ${path.join(MARKETPLACE_ROOT, 'cursor-hooks')}`);
         return 1;
       }
 

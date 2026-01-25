@@ -6,6 +6,11 @@ import { fileURLToPath } from 'url';
 import { SettingsDefaultsManager } from './SettingsDefaultsManager.js';
 import { logger } from '../utils/logger.js';
 
+// Marketplace vendor name - single source of truth
+export const MARKETPLACE_VENDOR = 'enzo-claude-mem';
+export const MARKETPLACE_ROOT = join(homedir(), '.claude', 'plugins', 'marketplaces', MARKETPLACE_VENDOR);
+export const CACHE_ROOT = join(homedir(), '.claude', 'plugins', 'cache', MARKETPLACE_VENDOR, 'claude-mem');
+
 // Get __dirname that works in both ESM (hooks) and CJS (worker) contexts
 function getDirname(): string {
   // CJS context - __dirname exists

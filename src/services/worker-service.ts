@@ -468,9 +468,9 @@ async function main() {
 
   switch (command) {
     case 'start': {
-      // Phase 1: Quick health check with increased timeout (5s instead of 1s)
-      // This gives slow/loaded systems more time to respond
-      if (await waitForHealth(port, 5000)) {
+      // Phase 1: Quick health check to detect already-running worker
+      // 1 second is enough to detect an existing healthy worker
+      if (await waitForHealth(port, 1000)) {
         const versionCheck = await checkVersionMatch(port);
         if (!versionCheck.matches) {
           logger.info('SYSTEM', 'Worker version mismatch detected - auto-restarting', {

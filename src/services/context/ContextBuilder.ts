@@ -6,11 +6,11 @@
  */
 
 import path from 'path';
-import { homedir } from 'os';
 import { unlinkSync } from 'fs';
 import { SessionStore } from '../sqlite/SessionStore.js';
 import { logger } from '../../utils/logger.js';
 import { getProjectName } from '../../utils/project-name.js';
+import { MARKETPLACE_ROOT } from '../../shared/paths.js';
 
 import type { ContextInput, ContextConfig, Observation, SessionSummary } from './types.js';
 import { loadContextConfig } from './ContextConfigLoader.js';
@@ -33,15 +33,7 @@ import { renderMarkdownEmptyState } from './formatters/MarkdownFormatter.js';
 import { renderColorEmptyState } from './formatters/ColorFormatter.js';
 
 // Version marker path for native module error handling
-const VERSION_MARKER_PATH = path.join(
-  homedir(),
-  '.claude',
-  'plugins',
-  'marketplaces',
-  'thedotmack',
-  'plugin',
-  '.install-version'
-);
+const VERSION_MARKER_PATH = path.join(MARKETPLACE_ROOT, 'plugin', '.install-version');
 
 /**
  * Initialize database connection with error handling
