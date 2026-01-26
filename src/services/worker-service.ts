@@ -117,6 +117,7 @@ export class WorkerService {
 
   // Route handlers
   private searchRoutes: SearchRoutes | null = null;
+  private sessionRoutes: SessionRoutes;
 
   // Initialization tracking
   private initializationComplete: Promise<void>;
@@ -190,7 +191,8 @@ export class WorkerService {
   private registerRoutes(): void {
     // Standard routes
     this.server.registerRoutes(new ViewerRoutes(this.sseBroadcaster, this.dbManager, this.sessionManager));
-    this.server.registerRoutes(new SessionRoutes(this.sessionManager, this.dbManager, this.sdkAgent, this.geminiAgent, this.openRouterAgent, this.sessionEventBroadcaster, this));
+    this.sessionRoutes = new SessionRoutes(this.sessionManager, this.dbManager, this.sdkAgent, this.geminiAgent, this.openRouterAgent, this.sessionEventBroadcaster, this);
+    this.server.registerRoutes(this.sessionRoutes);
     this.server.registerRoutes(new DataRoutes(this.paginationHelper, this.dbManager, this.sessionManager, this.sseBroadcaster, this, this.startTime));
     this.server.registerRoutes(new SettingsRoutes(this.settingsManager));
     this.server.registerRoutes(new LogsRoutes());
@@ -302,6 +304,9 @@ export class WorkerService {
       }).catch(error => {
         logger.error('SYSTEM', 'Auto-recovery of pending queues failed', {}, error as Error);
       });
+
+      // Start periodic health check for stuck queues
+      this.startQueueHealthCheck();
     } catch (error) {
       logger.error('SYSTEM', 'Background initialization failed', {}, error as Error);
       throw error;
@@ -334,31 +339,6 @@ export class WorkerService {
       })
       .catch((error) => {
         logger.error('WORKER', 'MCP connection failed (non-fatal)', {}, error as Error);
-      });
-  }
-
-  /**
-   * Start a session processor
-   */
-  private startSessionProcessor(
-    session: ReturnType<typeof this.sessionManager.getSession>,
-    source: string
-  ): void {
-    if (!session) return;
-
-    const sid = session.sessionDbId;
-    logger.info('SYSTEM', `Starting generator (${source})`, { sessionId: sid });
-
-    session.generatorPromise = this.sdkAgent.startSession(session, this)
-      .catch(error => {
-        logger.error('SDK', 'Session generator failed', {
-          sessionId: session.sessionDbId,
-          project: session.project
-        }, error as Error);
-      })
-      .finally(() => {
-        session.generatorPromise = null;
-        this.broadcastProcessingStatus();
       });
   }
 
@@ -396,13 +376,15 @@ export class WorkerService {
           continue;
         }
 
+        // Initialize session in memory (required before ensureGeneratorRunning)
         const session = this.sessionManager.initializeSession(sessionDbId);
         logger.info('SYSTEM', `Starting processor for session ${sessionDbId}`, {
           project: session.project,
           pendingCount: pendingStore.getPendingCount(sessionDbId)
         });
 
-        this.startSessionProcessor(session, 'startup-recovery');
+        // Use provider-aware ensureGeneratorRunning (handles Claude/Gemini/OpenRouter)
+        this.sessionRoutes.ensureGeneratorRunning(sessionDbId, 'startup-recovery');
         result.sessionsStarted++;
         result.startedSessionIds.push(sessionDbId);
 
@@ -414,6 +396,59 @@ export class WorkerService {
     }
 
     return result;
+  }
+
+  /**
+   * Start periodic health check for stuck queues
+   * Runs every 30 seconds to detect and restart generators for sessions with stuck messages
+   */
+  private startQueueHealthCheck(): void {
+    const HEALTH_CHECK_INTERVAL = 30_000; // 30 seconds
+    const MAX_PENDING_AGE = 60_000; // 1 minute - messages older than this are "stuck"
+
+    setInterval(async () => {
+      try {
+        const { PendingMessageStore } = await import('./sqlite/PendingMessageStore.js');
+        const pendingStore = new PendingMessageStore(this.dbManager.getSessionStore().db, 3);
+        const stuckSessions = pendingStore.getSessionsWithStuckMessages(MAX_PENDING_AGE);
+
+        if (stuckSessions.length === 0) return;
+
+        logger.info('SYSTEM', 'Health check found stuck queues', {
+          stuckSessionCount: stuckSessions.length,
+          sessionIds: stuckSessions
+        });
+
+        for (const sessionDbId of stuckSessions) {
+          const session = this.sessionManager.getSession(sessionDbId);
+
+          // If session doesn't exist in memory, initialize it first
+          if (!session) {
+            try {
+              this.sessionManager.initializeSession(sessionDbId);
+              logger.info('SYSTEM', 'Initialized session from health check', { sessionDbId });
+            } catch (initError) {
+              logger.error('SYSTEM', `Failed to initialize session ${sessionDbId}`, {}, initError as Error);
+              continue;
+            }
+          }
+
+          // Check if generator is running after potential initialization
+          const currentSession = this.sessionManager.getSession(sessionDbId);
+          if (currentSession && !currentSession.generatorPromise) {
+            logger.warn('SESSION', 'Restarting generator for stuck queue', { sessionDbId });
+            this.sessionRoutes.ensureGeneratorRunning(sessionDbId, 'health-check');
+          }
+        }
+      } catch (error) {
+        logger.error('SYSTEM', 'Queue health check failed', {}, error as Error);
+      }
+    }, HEALTH_CHECK_INTERVAL);
+
+    logger.info('SYSTEM', 'Queue health check started', {
+      intervalMs: HEALTH_CHECK_INTERVAL,
+      maxPendingAgeMs: MAX_PENDING_AGE
+    });
   }
 
   /**

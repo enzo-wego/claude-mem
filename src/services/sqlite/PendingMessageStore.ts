@@ -331,6 +331,22 @@ export class PendingMessageStore {
   }
 
   /**
+   * Get sessions with messages older than maxAge milliseconds (stuck messages)
+   * Used by health check to detect and restart stuck queues
+   */
+  getSessionsWithStuckMessages(maxAgeMs: number): number[] {
+    const cutoff = Date.now() - maxAgeMs;
+    const stmt = this.db.prepare(`
+      SELECT DISTINCT session_db_id
+      FROM pending_messages
+      WHERE status = 'pending' AND created_at_epoch < ?
+      ORDER BY session_db_id
+    `);
+    const rows = stmt.all(cutoff) as { session_db_id: number }[];
+    return rows.map(r => r.session_db_id);
+  }
+
+  /**
    * Get session info for a pending message (for recovery)
    */
   getSessionInfoForMessage(messageId: number): { sessionDbId: number; contentSessionId: string } | null {

@@ -86,8 +86,10 @@ export class SessionRoutes extends BaseRouteHandler {
    * Provider switching: If provider setting changed while generator is running,
    * we let the current generator finish naturally (max 5s linger timeout).
    * The next generator will use the new provider with shared conversationHistory.
+   *
+   * Public for WorkerService recovery and health check access.
    */
-  private ensureGeneratorRunning(sessionDbId: number, source: string): void {
+  public ensureGeneratorRunning(sessionDbId: number, source: string): void {
     const session = this.sessionManager.getSession(sessionDbId);
     if (!session) return;
 

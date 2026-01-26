@@ -37,7 +37,9 @@ export type GeminiModel =
   | 'gemini-2.5-pro'
   | 'gemini-2.0-flash'
   | 'gemini-2.0-flash-lite'
-  | 'gemini-3-flash';
+  | 'gemini-2.0-flash-exp'
+  | 'gemini-3-flash-preview'
+  | 'gemini-3-pro-preview';
 
 // Free tier RPM limits by model (requests per minute)
 const GEMINI_RPM_LIMITS: Record<GeminiModel, number> = {
@@ -46,7 +48,9 @@ const GEMINI_RPM_LIMITS: Record<GeminiModel, number> = {
   'gemini-2.5-pro': 5,
   'gemini-2.0-flash': 15,
   'gemini-2.0-flash-lite': 30,
-  'gemini-3-flash': 5,
+  'gemini-2.0-flash-exp': 10,
+  'gemini-3-flash-preview': 5,
+  'gemini-3-pro-preview': 2,
 };
 
 // Track last request time for rate limiting
@@ -83,14 +87,35 @@ interface GeminiResponse {
     content?: {
       parts?: Array<{
         text?: string;
+        thought?: boolean;  // true for thinking output, false/undefined for actual content
       }>;
     };
+    finishReason?: string;  // STOP, MAX_TOKENS, SAFETY, RECITATION, OTHER
+    safetyRatings?: Array<{
+      category: string;
+      probability: string;
+    }>;
   }>;
   usageMetadata?: {
     promptTokenCount?: number;
     candidatesTokenCount?: number;
     totalTokenCount?: number;
+    thoughtsTokenCount?: number;  // Tokens used for thinking (Gemini 2.5+)
   };
+  promptFeedback?: {
+    blockReason?: string;
+    safetyRatings?: Array<{
+      category: string;
+      probability: string;
+    }>;
+  };
+}
+
+/**
+ * Check if model supports thinking mode (Gemini 2.5+)
+ */
+function isThinkingModel(model: GeminiModel): boolean {
+  return model.startsWith('gemini-2.5') || model.startsWith('gemini-3');
 }
 
 /**
@@ -145,6 +170,10 @@ export class GeminiAgent {
       session.conversationHistory.push({ role: 'user', content: initPrompt });
       const initResponse = await this.queryGeminiMultiTurn(session.conversationHistory, apiKey, model, rateLimitingEnabled);
 
+      // ALWAYS ensure memorySessionId exists for stateless provider
+      // This must happen even if init response is empty (thinking-only)
+      this.sessionManager.ensureMemorySessionId(session, 'gemini');
+
       if (initResponse.content) {
         // Add response to conversation history
         session.conversationHistory.push({ role: 'assistant', content: initResponse.content });
@@ -153,9 +182,6 @@ export class GeminiAgent {
         const tokensUsed = initResponse.tokensUsed || 0;
         session.cumulativeInputTokens += Math.floor(tokensUsed * 0.7);  // Rough estimate
         session.cumulativeOutputTokens += Math.floor(tokensUsed * 0.3);
-
-        // Ensure memorySessionId exists for stateless provider before storing observations
-        this.sessionManager.ensureMemorySessionId(session, 'gemini');
 
         // Process response using shared ResponseProcessor (no original timestamp for init - not from queue)
         await processAgentResponse(
@@ -169,7 +195,10 @@ export class GeminiAgent {
           'Gemini'
         );
       } else {
-        logger.error('SDK', 'Empty Gemini init response - session may lack context', {
+        // For thinking models, init may return only thoughts (model acknowledging setup)
+        // This is OK - add placeholder to conversation history so subsequent turns work
+        session.conversationHistory.push({ role: 'assistant', content: '<acknowledged>' });
+        logger.warn('SDK', 'Init response contained only thinking - continuing with empty content', {
           sessionId: session.sessionDbId,
           model
         });
@@ -329,15 +358,32 @@ export class GeminiAgent {
     const contents = this.conversationToGeminiContents(history);
     const totalChars = history.reduce((sum, m) => sum + m.content.length, 0);
 
-    logger.debug('SDK', `Querying Gemini multi-turn (${model})`, {
+    // Enhanced request logging
+    logger.info('SDK', 'Gemini request', {
+      model,
       turns: history.length,
-      totalChars
+      totalChars,
+      lastMessagePreview: history[history.length - 1]?.content.slice(0, 200)
     });
 
     const url = `${GEMINI_API_URL}/${model}:generateContent?key=${apiKey}`;
 
     // Enforce RPM rate limit for free tier (skipped if rate limiting disabled)
     await enforceRateLimitForModel(model, rateLimitingEnabled);
+
+    // Build generation config - add thinkingConfig for 2.5+ models
+    const generationConfig: Record<string, unknown> = {
+      temperature: 0.3,  // Lower temperature for structured extraction
+      maxOutputTokens: 4096,
+    };
+
+    // Enable thinking output for Gemini 2.5+ models
+    if (isThinkingModel(model)) {
+      generationConfig.thinkingConfig = {
+        includeThoughts: true,  // Make thinking visible in response
+        thinkingBudget: 2048,   // Limit thinking tokens to leave room for output
+      };
+    }
 
     const response = await fetch(url, {
       method: 'POST',
@@ -346,10 +392,7 @@ export class GeminiAgent {
       },
       body: JSON.stringify({
         contents,
-        generationConfig: {
-          temperature: 0.3,  // Lower temperature for structured extraction
-          maxOutputTokens: 4096,
-        },
+        generationConfig,
       }),
     });
 
@@ -360,12 +403,46 @@ export class GeminiAgent {
 
     const data = await response.json() as GeminiResponse;
 
-    if (!data.candidates?.[0]?.content?.parts?.[0]?.text) {
-      logger.error('SDK', 'Empty response from Gemini');
+    // Extract parts from response
+    const parts = data.candidates?.[0]?.content?.parts || [];
+
+    // For thinking models, separate thought parts from actual content parts
+    // thought=true are internal reasoning, thought=false/undefined are actual output
+    const contentParts = parts.filter(p => !p.thought && p.text);
+    const thoughtParts = parts.filter(p => p.thought && p.text);
+
+    // Combine all non-thought text parts
+    const content = contentParts.map(p => p.text).join('');
+    const hasContent = content.length > 0;
+
+    // Enhanced response logging
+    logger.info('SDK', 'Gemini response', {
+      hasContent,
+      finishReason: data.candidates?.[0]?.finishReason,
+      promptBlockReason: data.promptFeedback?.blockReason,
+      tokensUsed: data.usageMetadata?.totalTokenCount,
+      thoughtsTokenCount: data.usageMetadata?.thoughtsTokenCount,
+      totalParts: parts.length,
+      contentParts: contentParts.length,
+      thoughtParts: thoughtParts.length,
+      candidatesCount: data.candidates?.length ?? 0
+    });
+
+    if (!hasContent) {
+      // Enhanced empty response logging with full diagnostics
+      logger.error('SDK', 'Empty response from Gemini', {
+        finishReason: data.candidates?.[0]?.finishReason,
+        promptBlockReason: data.promptFeedback?.blockReason,
+        safetyRatings: data.candidates?.[0]?.safetyRatings,
+        promptSafetyRatings: data.promptFeedback?.safetyRatings,
+        candidatesCount: data.candidates?.length ?? 0,
+        totalParts: parts.length,
+        thoughtParts: thoughtParts.length,
+        rawResponse: JSON.stringify(data).slice(0, 500)
+      });
       return { content: '' };
     }
 
-    const content = data.candidates[0].content.parts[0].text;
     const tokensUsed = data.usageMetadata?.totalTokenCount;
 
     return { content, tokensUsed };
@@ -390,7 +467,9 @@ export class GeminiAgent {
       'gemini-2.5-pro',
       'gemini-2.0-flash',
       'gemini-2.0-flash-lite',
-      'gemini-3-flash',
+      'gemini-2.0-flash-exp',
+      'gemini-3-flash-preview',
+      'gemini-3-pro-preview',
     ];
 
     let model: GeminiModel;
