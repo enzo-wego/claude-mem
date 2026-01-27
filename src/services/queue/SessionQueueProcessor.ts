@@ -26,7 +26,14 @@ export class SessionQueueProcessor {
           // Yield the message for processing (it's already deleted from queue)
           yield this.toPendingMessageWithId(persistentMessage);
         } else {
-          // Queue empty - wait for wake-up event
+          // Check if messages exist before waiting (handles race condition where
+          // messages were enqueued after claimAndDelete but before listener registered)
+          const pendingCount = this.store.getPendingCount(sessionDbId);
+          if (pendingCount > 0) {
+            // Messages exist - skip wait and retry claim immediately
+            continue;
+          }
+          // Queue truly empty - safe to wait for wake-up event
           await this.waitForMessage(signal);
         }
       } catch (error) {
