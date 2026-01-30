@@ -17,6 +17,7 @@ import { SessionManager } from './SessionManager.js';
 import { logger } from '../../utils/logger.js';
 import { buildInitPrompt, buildObservationPrompt, buildSummaryPrompt, buildContinuationPrompt } from '../../sdk/prompts.js';
 import { SettingsDefaultsManager } from '../../shared/SettingsDefaultsManager.js';
+import { USER_SETTINGS_PATH } from '../../shared/paths.js';
 import type { ActiveSession, ConversationMessage } from '../worker-types.js';
 import { ModeManager } from '../domain/ModeManager.js';
 import {
@@ -29,6 +30,34 @@ import {
 
 // Gemini API endpoint
 const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models';
+
+// Context window management constants (defaults, overridable via settings)
+const DEFAULT_GEMINI_MAX_CONTEXT_MESSAGES = 20;  // Maximum messages to keep in conversation history
+const DEFAULT_GEMINI_MAX_ESTIMATED_TOKENS = 100000;  // ~100k tokens max context (safety limit)
+const CHARS_PER_TOKEN_ESTIMATE = 4;  // Conservative estimate: 1 token = 4 chars
+
+// Retry configuration defaults
+const DEFAULT_RETRY_MAX_ATTEMPTS = 3;
+const DEFAULT_RETRY_BASE_DELAY_MS = 1000;
+
+/**
+ * Check if error is a rate limit (429) error
+ */
+function isRateLimitError(error: unknown): boolean {
+  if (error instanceof Error) {
+    return error.message.includes('429') || error.message.toLowerCase().includes('rate limit');
+  }
+  return false;
+}
+
+/**
+ * Calculate exponential backoff delay with jitter
+ */
+function calculateBackoffDelay(attempt: number, baseDelayMs: number): number {
+  const exponentialDelay = baseDelayMs * Math.pow(2, attempt);
+  const jitter = exponentialDelay * (0.1 + Math.random() * 0.1);
+  return Math.min(exponentialDelay + jitter, 60000); // Cap at 60s
+}
 
 // Gemini model types (available via API)
 export type GeminiModel =
@@ -143,6 +172,58 @@ export class GeminiAgent {
    */
   setFallbackAgent(agent: FallbackAgent): void {
     this.fallbackAgent = agent;
+  }
+
+  /**
+   * Estimate token count from text (conservative estimate)
+   */
+  private estimateTokens(text: string): number {
+    return Math.ceil(text.length / CHARS_PER_TOKEN_ESTIMATE);
+  }
+
+  /**
+   * Truncate conversation history to prevent runaway context costs
+   * Keeps most recent messages within token budget
+   */
+  private truncateHistory(history: ConversationMessage[]): ConversationMessage[] {
+    const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+
+    const MAX_CONTEXT_MESSAGES = parseInt(settings.CLAUDE_MEM_GEMINI_MAX_CONTEXT_MESSAGES) || DEFAULT_GEMINI_MAX_CONTEXT_MESSAGES;
+    const MAX_ESTIMATED_TOKENS = parseInt(settings.CLAUDE_MEM_GEMINI_MAX_TOKENS) || DEFAULT_GEMINI_MAX_ESTIMATED_TOKENS;
+
+    if (history.length <= MAX_CONTEXT_MESSAGES) {
+      // Check token count even if message count is ok
+      const totalTokens = history.reduce((sum, m) => sum + this.estimateTokens(m.content), 0);
+      if (totalTokens <= MAX_ESTIMATED_TOKENS) {
+        return history;
+      }
+    }
+
+    // Sliding window: keep most recent messages within limits
+    const truncated: ConversationMessage[] = [];
+    let tokenCount = 0;
+
+    // Process messages in reverse (most recent first)
+    for (let i = history.length - 1; i >= 0; i--) {
+      const msg = history[i];
+      const msgTokens = this.estimateTokens(msg.content);
+
+      if (truncated.length >= MAX_CONTEXT_MESSAGES || tokenCount + msgTokens > MAX_ESTIMATED_TOKENS) {
+        logger.warn('SDK', 'Gemini context window truncated to prevent death spiral', {
+          originalMessages: history.length,
+          keptMessages: truncated.length,
+          droppedMessages: i + 1,
+          estimatedTokens: tokenCount,
+          tokenLimit: MAX_ESTIMATED_TOKENS
+        });
+        break;
+      }
+
+      truncated.unshift(msg);  // Add to beginning
+      tokenCount += msgTokens;
+    }
+
+    return truncated;
   }
 
   /**
@@ -348,6 +429,7 @@ export class GeminiAgent {
   /**
    * Query Gemini via REST API with full conversation history (multi-turn)
    * Sends the entire conversation context for coherent responses
+   * Includes exponential backoff for rate limit (429) errors
    */
   private async queryGeminiMultiTurn(
     history: ConversationMessage[],
@@ -355,15 +437,20 @@ export class GeminiAgent {
     model: GeminiModel,
     rateLimitingEnabled: boolean
   ): Promise<{ content: string; tokensUsed?: number }> {
-    const contents = this.conversationToGeminiContents(history);
-    const totalChars = history.reduce((sum, m) => sum + m.content.length, 0);
+    // CRITICAL: Truncate history to prevent unbounded growth death spiral
+    const truncatedHistory = this.truncateHistory(history);
+    const contents = this.conversationToGeminiContents(truncatedHistory);
+    const totalChars = truncatedHistory.reduce((sum, m) => sum + m.content.length, 0);
+    const estimatedTokens = this.estimateTokens(truncatedHistory.map(m => m.content).join(''));
 
     // Enhanced request logging
     logger.info('SDK', 'Gemini request', {
       model,
-      turns: history.length,
+      turns: truncatedHistory.length,
+      originalTurns: history.length,
       totalChars,
-      lastMessagePreview: history[history.length - 1]?.content.slice(0, 200)
+      estimatedTokens,
+      lastMessagePreview: truncatedHistory[truncatedHistory.length - 1]?.content.slice(0, 200)
     });
 
     const url = `${GEMINI_API_URL}/${model}:generateContent?key=${apiKey}`;
@@ -385,23 +472,76 @@ export class GeminiAgent {
       };
     }
 
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        contents,
-        generationConfig,
-      }),
-    });
+    // Get retry settings
+    const settings = SettingsDefaultsManager.loadFromFile(USER_SETTINGS_PATH);
+    const maxAttempts = parseInt(settings.CLAUDE_MEM_GEMINI_RETRY_MAX_ATTEMPTS) || DEFAULT_RETRY_MAX_ATTEMPTS;
+    const baseDelayMs = parseInt(settings.CLAUDE_MEM_GEMINI_RETRY_BASE_DELAY_MS) || DEFAULT_RETRY_BASE_DELAY_MS;
 
-    if (!response.ok) {
-      const error = await response.text();
-      throw new Error(`Gemini API error: ${response.status} - ${error}`);
+    // Retry loop with exponential backoff for 429 errors
+    let lastError: Error | null = null;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            contents,
+            generationConfig,
+          }),
+        });
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          const error = new Error(`Gemini API error: ${response.status} - ${errorText}`);
+
+          // Check if rate limited and should retry
+          if (response.status === 429 && attempt < maxAttempts - 1) {
+            const delay = calculateBackoffDelay(attempt, baseDelayMs);
+            logger.warn('SDK', `Gemini rate limited (429), retrying in ${delay}ms`, {
+              attempt: attempt + 1,
+              maxAttempts,
+              model
+            });
+            await new Promise(resolve => setTimeout(resolve, delay));
+            continue;
+          }
+
+          throw error;
+        }
+
+        // Success - parse and return
+        const data = await response.json() as GeminiResponse;
+        return this.parseGeminiResponse(data, model);
+
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error));
+
+        // Retry on rate limit errors
+        if (isRateLimitError(error) && attempt < maxAttempts - 1) {
+          const delay = calculateBackoffDelay(attempt, baseDelayMs);
+          logger.warn('SDK', `Gemini rate limited, retrying in ${delay}ms`, {
+            attempt: attempt + 1,
+            maxAttempts,
+            error: lastError.message
+          });
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+
+        throw error;
+      }
     }
 
-    const data = await response.json() as GeminiResponse;
+    // Should not reach here, but throw last error just in case
+    throw lastError || new Error('Gemini request failed after retries');
+  }
+
+  /**
+   * Parse Gemini response and extract content
+   */
+  private parseGeminiResponse(data: GeminiResponse, _model: GeminiModel): { content: string; tokensUsed?: number } {
 
     // Extract parts from response
     const parts = data.candidates?.[0]?.content?.parts || [];

@@ -184,10 +184,33 @@ export class SessionRoutes extends BaseRouteHandler {
             const pendingCount = pendingStore.getPendingCount(sessionDbId);
 
             if (pendingCount > 0) {
+              // Increment crash counter to detect death spirals
+              session.crashRecoveryCount = (session.crashRecoveryCount || 0) + 1;
+
               logger.info('SESSION', `Restarting generator after crash/exit with pending work`, {
                 sessionId: sessionDbId,
-                pendingCount
+                pendingCount,
+                crashRecoveryCount: session.crashRecoveryCount,
+                historyLength: session.conversationHistory.length
               });
+
+              // After 3 crashes, truncate history to break potential death spiral
+              if (session.crashRecoveryCount >= 3 && session.conversationHistory.length > 4) {
+                const originalLength = session.conversationHistory.length;
+                // Keep first 2 messages (init context) + last 2 messages (recent context)
+                session.conversationHistory = [
+                  ...session.conversationHistory.slice(0, 2),
+                  ...session.conversationHistory.slice(-2)
+                ];
+                logger.warn('SESSION', 'Truncated history after repeated crashes', {
+                  sessionId: sessionDbId,
+                  crashRecoveryCount: session.crashRecoveryCount,
+                  originalLength,
+                  newLength: session.conversationHistory.length
+                });
+                // Reset counter after truncation
+                session.crashRecoveryCount = 0;
+              }
 
               // Abort OLD controller before replacing to prevent child process leaks
               const oldController = session.abortController;
