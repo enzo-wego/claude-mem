@@ -64,6 +64,34 @@ function calculateBackoffDelay(attempt: number, baseDelayMs: number): number {
   return Math.min(exponentialDelay + jitter, 60000); // Cap at 60s
 }
 
+/**
+ * Extract Gemini's suggested retry delay from error response.
+ * Gemini 429 responses include a RetryInfo detail with the exact delay to wait.
+ * Returns delay in milliseconds, or null if not found.
+ */
+function extractGeminiRetryDelay(errorText: string): number | null {
+  try {
+    const errorJson = JSON.parse(errorText);
+    const details = errorJson?.error?.details || [];
+    for (const detail of details) {
+      if (detail['@type'] === 'type.googleapis.com/google.rpc.RetryInfo') {
+        const retryDelay = detail.retryDelay;
+        if (typeof retryDelay === 'string') {
+          // Parse "32s" or "32.083535778s" format
+          const match = retryDelay.match(/^([\d.]+)s$/);
+          if (match) {
+            // Convert to ms and round up, add 1s buffer for safety
+            return Math.ceil(parseFloat(match[1]) * 1000) + 1000;
+          }
+        }
+      }
+    }
+  } catch {
+    // Not valid JSON, return null
+  }
+  return null;
+}
+
 // Gemini model types (available via API)
 export type GeminiModel =
   | 'gemini-2.5-flash-lite'
@@ -503,11 +531,14 @@ export class GeminiAgent {
 
           // Check if rate limited and should retry
           if (response.status === 429 && attempt < maxAttempts - 1) {
-            const delay = calculateBackoffDelay(attempt, baseDelayMs);
+            // Use Gemini's suggested retry delay if available, otherwise exponential backoff
+            const geminiDelay = extractGeminiRetryDelay(errorText);
+            const delay = geminiDelay ?? calculateBackoffDelay(attempt, baseDelayMs);
             logger.warn('SDK', `Gemini rate limited (429), retrying in ${delay}ms`, {
               attempt: attempt + 1,
               maxAttempts,
-              model
+              model,
+              usingGeminiSuggestedDelay: geminiDelay !== null
             });
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
