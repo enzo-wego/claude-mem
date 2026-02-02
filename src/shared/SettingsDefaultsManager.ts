@@ -81,8 +81,8 @@ export class SettingsDefaultsManager {
     CLAUDE_MEM_GEMINI_RATE_LIMITING_ENABLED: 'true',  // Rate limiting ON by default for free tier users
     CLAUDE_MEM_GEMINI_MAX_CONTEXT_MESSAGES: '20',  // Max messages to keep in context window
     CLAUDE_MEM_GEMINI_MAX_TOKENS: '100000',  // Max estimated tokens for context window (~100k safety limit)
-    CLAUDE_MEM_GEMINI_RETRY_MAX_ATTEMPTS: '3',  // Max retry attempts for 429 errors
-    CLAUDE_MEM_GEMINI_RETRY_BASE_DELAY_MS: '1000',  // Base delay for exponential backoff (1s)
+    CLAUDE_MEM_GEMINI_RETRY_MAX_ATTEMPTS: '5',  // Max retry attempts for 429/quota errors (5s+10s+20s+40s=75s)
+    CLAUDE_MEM_GEMINI_RETRY_BASE_DELAY_MS: '5000',  // Base delay for exponential backoff (5s)
     CLAUDE_MEM_OPENROUTER_API_KEY: '',  // Empty by default, can be set via UI or env
     CLAUDE_MEM_OPENROUTER_MODEL: 'xiaomi/mimo-v2-flash:free',  // Default OpenRouter model (free tier)
     CLAUDE_MEM_OPENROUTER_SITE_URL: '',  // Optional: for OpenRouter analytics

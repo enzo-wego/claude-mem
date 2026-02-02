@@ -36,16 +36,21 @@ const DEFAULT_GEMINI_MAX_CONTEXT_MESSAGES = 20;  // Maximum messages to keep in 
 const DEFAULT_GEMINI_MAX_ESTIMATED_TOKENS = 100000;  // ~100k tokens max context (safety limit)
 const CHARS_PER_TOKEN_ESTIMATE = 4;  // Conservative estimate: 1 token = 4 chars
 
-// Retry configuration defaults
-const DEFAULT_RETRY_MAX_ATTEMPTS = 3;
-const DEFAULT_RETRY_BASE_DELAY_MS = 1000;
+// Retry configuration defaults - increased for quota exhaustion scenarios
+// With 5 attempts at 5s base: 5s + 10s + 20s + 40s = ~75s total retry time
+const DEFAULT_RETRY_MAX_ATTEMPTS = 5;
+const DEFAULT_RETRY_BASE_DELAY_MS = 5000;
 
 /**
  * Check if error is a rate limit (429) error
  */
 function isRateLimitError(error: unknown): boolean {
   if (error instanceof Error) {
-    return error.message.includes('429') || error.message.toLowerCase().includes('rate limit');
+    const msg = error.message.toLowerCase();
+    return msg.includes('429') ||
+           msg.includes('rate limit') ||
+           msg.includes('resource_exhausted') ||
+           msg.includes('quota exceeded');
   }
   return false;
 }
